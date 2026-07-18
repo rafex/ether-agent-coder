@@ -181,7 +181,10 @@ def build_agent() -> ToolCallingAgent:
         raise RuntimeError("llm_provider_openai_apikey is missing")
     if not config["model"]:
         raise RuntimeError("llm_provider_openai_model is missing")
-    model_id = config["model"] if "/" in config["model"] else f"openai/{config['model']}"
+    # LiteLLM consumes the first `openai/` segment as its transport provider.
+    # Prefixing once unconditionally preserves provider model IDs such as
+    # Groq's `openai/gpt-oss-120b` in the outgoing OpenAI-compatible request.
+    model_id = _litellm_model_id(config["model"])
     model_kwargs = {}
     if config["reasoner_level"]:
         model_kwargs["reasoning_effort"] = config["reasoner_level"]
@@ -207,3 +210,8 @@ def provider_config() -> dict[str, str]:
         "model": os.environ.get("llm_provider_openai_model", ""),
         "reasoner_level": os.environ.get("llm_provider_openai_model_level_razoner", ""),
     }
+
+
+def _litellm_model_id(model_name: str) -> str:
+    """Map the configured model name to LiteLLM's OpenAI transport form."""
+    return f"openai/{model_name}"
