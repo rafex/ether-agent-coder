@@ -6,6 +6,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "xolotl/agent/python/src"))
 
+import fastapi  # noqa: E402,F401
+import litellm  # noqa: E402,F401
+
 from agent import list_files, read_file, run_command  # noqa: E402
 
 
@@ -24,4 +27,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
