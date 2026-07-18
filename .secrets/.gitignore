@@ -1,0 +1,7 @@
+# Plaintext materialized by `just secrets-decrypt` must never be committed.
+*
+!.gitignore
+!README.md
+!.llm-provider.enc.yml
+.llm-provider.yml
+

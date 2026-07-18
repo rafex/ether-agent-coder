@@ -1,0 +1,5 @@
+# Xolotl runtime state and generated artifacts
+.xolotl/
+*.log
+*.jsonl
+

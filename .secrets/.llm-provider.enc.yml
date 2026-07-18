@@ -1,0 +1,19 @@
+llm_provider_openai_apikey: ENC[AES256_GCM,data:aAW/CRT9MQUnDrDXxwLWqbiL15ihv7kTfJMdacmwerGYElPpz5FgLhgCh3wqV4iesJKGsMqo/S4=,iv:8ZNvwZZ/dnd9yVQdK2GaseWRsRbnRotaeyj8Pwh8BW8=,tag:cBh74CywM8abzm51p1vhsw==,type:str]
+llm_provider_openai_url: https://api.groq.com/openai/v1
+llm_provider_openai_model: openai/gpt-oss-120b
+llm_provider_openai_model_level_razoner: ""
+sops:
+    age:
+        - enc: |
+            -----BEGIN AGE ENCRYPTED FILE-----
+            YWdlLWVuY3J5cHRpb24ub3JnL3YxCi0+IFgyNTUxOSBFWlAxQ3BudHhxOThtLzFo
+            RWcvNnBFL1BKaERiK25JVTlOOXk3WFIvRUI0CkpGejlDR2JYcVd4SGE1Q2ZTamtQ
+            OVJkb1YxZWJMRmt4bU14OWEyWXNaQjQKLS0tIDExSDBRS2xXY0VQNXh0Y2VPN00v
+            RXh5Q2NhNU1KeUZHbkFLTU5wOTBJMG8KTh3UqYAO0Z9EDPGfjPpJ5TDiJT1XIBhr
+            nWDp9PNE5xOrbrQO78SsA6f7SOjIsr/u6Fv+hs7KB0GdLHkYLkkyIg==
+            -----END AGE ENCRYPTED FILE-----
+          recipient: age1tsdes4smfnfh0dna4hwdwjrd2lgxy5wlyzrr8j6xy5ge3j3ngu9smyc242
+    encrypted_regex: ^(data|stringData|.*(apikey|key|token|secret|password).*)$
+    lastmodified: "2026-07-18T19:51:19Z"
+    mac: ENC[AES256_GCM,data:Hqb/vmVPGAV36mpkqX+UqxJymV9H2BGjQZ609AX5Z0chP4WAMa52w+cYfAqx+YxW9u38okehaUVDdbYOsIDtZpr9p8jpH5LUqnp58QpzyU75aJ9KsUoKrP/mqMjjD2Eo3uyCJEcnTAe+kis2py+yzRbw3Pjei5jwtgw66FCnUmw=,iv:f30r5aHu7IEaOlcyeYSI7QWUPz3isZxoPnlZCIyI/O4=,tag:Mcxx+AyxaRri/Ym8nbOQ5w==,type:str]
+    version: 3.13.2
