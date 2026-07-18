@@ -1,0 +1,4 @@
+# SOPS policy. The age recipient is supplied at runtime by the helper scripts.
+creation_rules:
+  - path_regex: .*\.secrets/.*\.enc\.yml$
+    encrypted_regex: '^(data|stringData|.*(apikey|key|token|secret|password).*)$'

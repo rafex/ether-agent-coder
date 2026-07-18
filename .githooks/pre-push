@@ -1,0 +1,29 @@
+#!/usr/bin/env bash
+set -euo pipefail
+repo_root="$(git rev-parse --show-toplevel)"
+"$repo_root/helpers/scripts/shell/secrets-check.sh"
+
+# Check the file names that are actually being sent, not only the index.
+while read -r _local_ref local_sha _remote_ref remote_sha; do
+  [[ -z "${local_sha:-}" ]] && continue
+  if [[ "$remote_sha" =~ ^0+$ ]]; then
+    files="$(git -C "$repo_root" ls-tree -r --name-only "$local_sha")"
+  else
+    files="$(git -C "$repo_root" diff --name-only "$remote_sha" "$local_sha")"
+  fi
+  while IFS= read -r file; do
+    [[ -z "$file" ]] && continue
+    case "$file" in
+      .secrets/.llm-provider.enc.yml|.secrets/README.md|.secrets/.gitignore) continue ;;
+      .secrets/*|.env|.env.*|*.pem|*.key|*id_rsa*)
+        printf 'Refusing sensitive file in push: %s\n' "$file" >&2
+        exit 1
+        ;;
+    esac
+    blob="$(git -C "$repo_root" show "$local_sha:$file" 2>/dev/null || true)"
+    if printf '%s\n' "$blob" | grep -Eq 'BEGIN (RSA|OPENSSH|EC|PRIVATE) KEY|sk-[A-Za-z0-9]{20,}'; then
+      printf 'Refusing plaintext credential material in push: %s\n' "$file" >&2
+      exit 1
+    fi
+  done <<< "$files"
+done

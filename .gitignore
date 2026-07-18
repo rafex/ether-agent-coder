@@ -1,0 +1,25 @@
+# Global editor, OS and local environment noise
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+.env
+.env.*
+!.env.example
+
+# Local secrets: only the SOPS ciphertext is allowed in Git
+.secrets/*
+!.secrets/
+!.secrets/README.md
+!.secrets/.llm-provider.enc.yml
+.secrets/.llm-provider.yml
+
+# Build and test output
+coverage/
+dist/
+build/
+target/
+tmp/
+.cache/
+
