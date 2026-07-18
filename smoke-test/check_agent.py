@@ -10,11 +10,12 @@ import fastapi  # noqa: E402,F401
 import litellm  # noqa: E402,F401
 import orjson  # noqa: E402,F401
 
-from agent import _litellm_model_id, list_files, read_file, run_command  # noqa: E402
+from agent import _litellm_model_id, environment_info, list_files, read_file, run_command  # noqa: E402
 
 
 def main() -> None:
     assert "xolotl/agent/python/src/agent.py" in list_files.forward("xolotl/agent/python/src")
+    assert "os=" in environment_info.forward()
     assert "ether-agent-coder" in read_file.forward("README.md", 1, 1)
     assert run_command.forward("python --version").startswith("exit=0")
     assert _litellm_model_id("openai/gpt-oss-120b") == "openai/openai/gpt-oss-120b"

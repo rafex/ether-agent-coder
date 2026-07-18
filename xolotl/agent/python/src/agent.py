@@ -2,7 +2,9 @@
 from __future__ import annotations
 
 import os
+import platform
 import shlex
+import shutil
 import subprocess
 from pathlib import Path
 
@@ -12,9 +14,13 @@ from smolagents import LiteLLMModel, ToolCallingAgent, tool
 REPO_ROOT = Path(os.environ.get("Xolotl_REPO_ROOT", Path.cwd())).resolve()
 BLOCKED_PARTS = {".git", ".secrets", ".venv", "__pycache__", ".pytest_cache", "node_modules", "target"}
 BLOCKED_NAMES = {".env", ".env.local", ".llm-provider.yml"}
-ALLOWED_COMMANDS = {
+POSIX_COMMANDS = {
     "bash", "cargo", "find", "git", "gradle", "java", "just", "make", "mvn",
     "node", "npm", "python", "pytest", "rg", "rustc", "sed", "uv",
+}
+WINDOWS_COMMANDS = {
+    "cargo", "git", "gradle", "java", "just", "mvn", "node", "npm", "python",
+    "pytest", "pwsh", "powershell", "rg", "rustc", "uv",
 }
 FORBIDDEN_COMMAND_TEXT = ("git push", "git reset", "git clean", "rm -rf", "sudo ")
 AGENT_ROLE = "programming-support"
@@ -38,6 +44,33 @@ def _safe_path(relative_path: str) -> Path:
     if path.name in BLOCKED_NAMES or path.name.startswith(".env."):
         raise ValueError("access to secret files is disabled")
     return path
+
+
+def _allowed_commands() -> set[str]:
+    commands = WINDOWS_COMMANDS if platform.system() == "Windows" else POSIX_COMMANDS
+    return {command for command in commands if shutil.which(command)}
+
+
+@tool
+def environment_info() -> str:
+    """Describe the host environment and available development commands.
+
+    Returns:
+        Operating system, architecture, Python runtime, shell and available
+        allowlisted executables. Use this before choosing platform-specific commands.
+    """
+    shell_name = "ComSpec" if platform.system() == "Windows" else "SHELL"
+    shell = os.environ.get(shell_name, "unknown")
+    available = ", ".join(sorted(_allowed_commands())) or "none"
+    return (
+        f"os={platform.system()}\n"
+        f"release={platform.release()}\n"
+        f"architecture={platform.machine()}\n"
+        f"python={platform.python_version()}\n"
+        f"shell={shell}\n"
+        f"repo_root={REPO_ROOT}\n"
+        f"available_commands={available}"
+    )
 
 
 @tool
@@ -154,7 +187,8 @@ def run_command(command: str, timeout_seconds: int = 60) -> str:
     if any(fragment in command for fragment in FORBIDDEN_COMMAND_TEXT):
         raise ValueError("destructive or remote-write commands are disabled")
     argv = shlex.split(command)
-    if not argv or argv[0] not in ALLOWED_COMMANDS:
+    allowed_commands = _allowed_commands()
+    if not argv or argv[0] not in allowed_commands:
         raise ValueError(f"command is not allowlisted: {argv[0] if argv else '(empty)'}")
     completed = subprocess.run(
         argv,
@@ -170,9 +204,11 @@ def run_command(command: str, timeout_seconds: int = 60) -> str:
 
 SYSTEM_INSTRUCTIONS = """You are Xolotl, a programming-support agent working inside a repository.
 Help the user understand, plan, implement, debug, test, review, and document software changes.
-Use repository tools before making assumptions. Read relevant files first, make focused changes,
-then run proportional checks. Never access secrets, .git, or environment files. Never push, reset,
-clean, or perform destructive operations. Explain what changed and what was verified."""
+Call environment_info before choosing commands so you respect the host OS, shell, architecture,
+and installed executables. Use repository tools before making assumptions. Read relevant files
+first, make focused changes, then run proportional checks. Never access secrets, .git, or
+environment files. Never push, reset, clean, or perform destructive operations. Explain what
+changed and what was verified."""
 
 
 def build_agent() -> ToolCallingAgent:
@@ -199,7 +235,7 @@ def build_agent() -> ToolCallingAgent:
         **model_kwargs,
     )
     return ToolCallingAgent(
-        tools=[list_files, read_file, search_code, write_file, run_command],
+        tools=[environment_info, list_files, read_file, search_code, write_file, run_command],
         model=model,
         instructions=SYSTEM_INSTRUCTIONS,
         max_tool_threads=1,

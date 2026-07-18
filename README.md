@@ -26,3 +26,5 @@ puede invocar Make; Make no invoca Just.
 no crea un archivo de configuración plano. El agente puede listar, leer, buscar,
 escribir archivos y ejecutar comandos de desarrollo allowlisted, pero no accede a
 secretos ni ejecuta `git push`, `git reset`, `git clean` u operaciones destructivas.
+Antes de ejecutar comandos, detecta el sistema operativo y solo permite ejecutables
+instalados para ese entorno.
