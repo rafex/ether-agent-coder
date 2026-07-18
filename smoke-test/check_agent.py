@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "xolotl/agent/pytho
 
 import fastapi  # noqa: E402,F401
 import litellm  # noqa: E402,F401
+import orjson  # noqa: E402,F401
 
 from agent import list_files, read_file, run_command  # noqa: E402
 
