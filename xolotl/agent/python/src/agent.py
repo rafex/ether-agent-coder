@@ -186,6 +186,9 @@ def build_agent() -> ToolCallingAgent:
     # Groq's `openai/gpt-oss-120b` in the outgoing OpenAI-compatible request.
     model_id = _litellm_model_id(config["model"])
     model_kwargs = {}
+    # Groq rejects `required` when the model can answer without a tool call.
+    # `auto` still enables tool use when the task needs repository inspection.
+    model_kwargs["tool_choice"] = "auto"
     if config["reasoner_level"]:
         model_kwargs["reasoning_effort"] = config["reasoner_level"]
     model = LiteLLMModel(
