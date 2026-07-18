@@ -15,3 +15,5 @@ secrets-check:
 hooks-install:
     ./helpers/scripts/shell/install-hooks.sh
 
+agent *args:
+    ./helpers/scripts/shell/run-agent.sh {{args}}
