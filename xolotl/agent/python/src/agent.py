@@ -6,6 +6,7 @@ import platform
 import shlex
 import shutil
 import subprocess
+import tempfile
 from pathlib import Path
 
 from smolagents import LiteLLMModel, ToolCallingAgent, tool
@@ -15,7 +16,7 @@ REPO_ROOT = Path(os.environ.get("Xolotl_REPO_ROOT", Path.cwd())).resolve()
 BLOCKED_PARTS = {".git", ".secrets", ".venv", "__pycache__", ".pytest_cache", "node_modules", "target"}
 BLOCKED_NAMES = {".env", ".env.local", ".llm-provider.yml"}
 POSIX_COMMANDS = {
-    "bash", "cargo", "find", "git", "gradle", "java", "just", "make", "mvn",
+    "bash", "cargo", "git", "gradle", "java", "just", "make", "mvn",
     "node", "npm", "python", "pytest", "rg", "rustc", "sed", "uv",
 }
 WINDOWS_COMMANDS = {
@@ -44,6 +45,19 @@ def _safe_path(relative_path: str) -> Path:
     if path.name in BLOCKED_NAMES or path.name.startswith(".env."):
         raise ValueError("access to secret files is disabled")
     return path
+
+
+def _safe_report_path(path: str) -> Path:
+    """Allow only Markdown reports directly under the system temp directory."""
+    candidate = Path(path).expanduser().resolve()
+    temp_roots = {Path(tempfile.gettempdir()).resolve()}
+    if platform.system() != "Windows":
+        temp_roots.add(Path("/tmp").resolve())
+    if candidate.parent not in temp_roots or candidate.suffix.lower() != ".md":
+        raise ValueError("reports must be Markdown files directly under the system temp directory")
+    if candidate.name.startswith(".") or candidate.name in {".env", ".llm-provider.md"}:
+        raise ValueError("invalid report filename")
+    return candidate
 
 
 def _allowed_commands() -> set[str]:
@@ -172,6 +186,26 @@ def write_file(path: str, content: str) -> str:
 
 
 @tool
+def write_report(path: str, content: str) -> str:
+    """Write a user-requested Markdown analysis report to the system temp directory.
+
+    Args:
+        path: Absolute Markdown path directly under the system temp directory, such as /tmp/report.md.
+        content: Complete report content in Markdown.
+
+    Returns:
+        Confirmation with the report path and byte count.
+    """
+    report_path = _safe_report_path(path)
+    if len(content.encode("utf-8")) > 200_000:
+        raise ValueError("refusing reports larger than 200 KiB")
+    if "BEGIN OPENSSH PRIVATE KEY" in content or "sk-" in content:
+        raise ValueError("report appears to contain credential material")
+    report_path.write_text(content, encoding="utf-8")
+    return f"wrote report {report_path} ({len(content.encode('utf-8'))} bytes)"
+
+
+@tool
 def run_command(command: str, timeout_seconds: int = 60) -> str:
     """Run one safe, non-destructive development command in the repository.
 
@@ -205,10 +239,11 @@ def run_command(command: str, timeout_seconds: int = 60) -> str:
 SYSTEM_INSTRUCTIONS = """You are Xolotl, a programming-support agent working inside a repository.
 Help the user understand, plan, implement, debug, test, review, and document software changes.
 Call environment_info before choosing commands so you respect the host OS, shell, architecture,
-and installed executables. Use repository tools before making assumptions. Read relevant files
-first, make focused changes, then run proportional checks. Never access secrets, .git, or
-environment files. Never push, reset, clean, or perform destructive operations. Explain what
-changed and what was verified."""
+and installed executables. Use list_files, read_file, and search_code to inspect the repository;
+do not use find to inventory it. Use write_report only when the user explicitly requests a
+Markdown report outside the repository, and only under the system temp directory. Never access
+secrets, .git, or environment files. Never push, reset, clean, or perform destructive operations.
+Explain what changed and what was verified."""
 
 
 def build_agent() -> ToolCallingAgent:
@@ -235,7 +270,7 @@ def build_agent() -> ToolCallingAgent:
         **model_kwargs,
     )
     return ToolCallingAgent(
-        tools=[environment_info, list_files, read_file, search_code, write_file, run_command],
+        tools=[environment_info, list_files, read_file, search_code, write_file, write_report, run_command],
         model=model,
         instructions=SYSTEM_INSTRUCTIONS,
         max_tool_threads=1,
