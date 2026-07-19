@@ -17,11 +17,11 @@ REPO_ROOT = Path(os.environ.get("Xolotl_REPO_ROOT", Path.cwd())).resolve()
 BLOCKED_PARTS = {".git", ".secrets", ".venv", "__pycache__", ".pytest_cache", "node_modules", "target"}
 BLOCKED_NAMES = {".env", ".env.local", ".llm-provider.yml"}
 POSIX_COMMANDS = {
-    "bash", "cargo", "git", "gradle", "java", "just", "make", "mvn",
+    "bash", "cargo", "git", "gradle", "java", "javac", "just", "make", "mvn",
     "node", "npm", "python", "pytest", "rg", "rustc", "sed", "uv",
 }
 WINDOWS_COMMANDS = {
-    "cargo", "git", "gradle", "java", "just", "mvn", "node", "npm", "python",
+    "cargo", "git", "gradle", "java", "javac", "just", "mvn", "node", "npm", "python",
     "pytest", "pwsh", "powershell", "rg", "rustc", "uv",
 }
 FORBIDDEN_COMMAND_TEXT = ("git push", "git reset", "git clean", "rm -rf", "sudo ")
