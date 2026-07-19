@@ -10,6 +10,7 @@ import tempfile
 from pathlib import Path
 
 from smolagents import LiteLLMModel, ToolCallingAgent, tool
+from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallFunction
 
 
 REPO_ROOT = Path(os.environ.get("Xolotl_REPO_ROOT", Path.cwd())).resolve()
@@ -57,6 +58,23 @@ def _safe_report_path(path: str) -> Path:
         raise ValueError("reports must be Markdown files directly under the system temp directory")
     if candidate.name.startswith(".") or candidate.name in {".env", ".llm-provider.md"}:
         raise ValueError("invalid report filename")
+    return candidate
+
+
+def _safe_temp_file_path(path: str) -> Path:
+    """Allow source/document files directly under the system temp directory."""
+    candidate = Path(path).expanduser().resolve()
+    temp_roots = {Path(tempfile.gettempdir()).resolve()}
+    if platform.system() != "Windows":
+        temp_roots.add(Path("/tmp").resolve())
+    allowed_suffixes = {
+        ".c", ".cpp", ".h", ".java", ".js", ".json", ".md", ".py", ".rs",
+        ".toml", ".ts", ".txt", ".yml", ".yaml",
+    }
+    if candidate.parent not in temp_roots or candidate.suffix.lower() not in allowed_suffixes:
+        raise ValueError("temporary files must use an allowed source/document extension directly under the system temp directory")
+    if candidate.name.startswith(".") or candidate.name in {".env", ".llm-provider.yml"}:
+        raise ValueError("invalid temporary filename")
     return candidate
 
 
@@ -206,6 +224,26 @@ def write_report(path: str, content: str) -> str:
 
 
 @tool
+def write_temp_file(path: str, content: str) -> str:
+    """Write user-requested source or document content under the system temp directory.
+
+    Args:
+        path: Absolute temporary path such as /tmp/Hello.java.
+        content: Complete UTF-8 file content.
+
+    Returns:
+        Confirmation with the temporary file path and byte count.
+    """
+    file_path = _safe_temp_file_path(path)
+    if len(content.encode("utf-8")) > 200_000:
+        raise ValueError("refusing temporary files larger than 200 KiB")
+    if "BEGIN OPENSSH PRIVATE KEY" in content or "sk-" in content:
+        raise ValueError("file appears to contain credential material")
+    file_path.write_text(content, encoding="utf-8")
+    return f"wrote temporary file {file_path} ({len(content.encode('utf-8'))} bytes)"
+
+
+@tool
 def run_command(command: str, timeout_seconds: int = 60) -> str:
     """Run one safe, non-destructive development command in the repository.
 
@@ -241,9 +279,42 @@ Help the user understand, plan, implement, debug, test, review, and document sof
 Call environment_info before choosing commands so you respect the host OS, shell, architecture,
 and installed executables. Use list_files, read_file, and search_code to inspect the repository;
 do not use find to inventory it. Use write_report only when the user explicitly requests a
-Markdown report outside the repository, and only under the system temp directory. Never access
-secrets, .git, or environment files. Never push, reset, clean, or perform destructive operations.
-Explain what changed and what was verified."""
+Markdown report outside the repository, and use write_temp_file for explicitly requested source
+files under the system temp directory. Never access secrets, .git, or environment files. Never
+push, reset, clean, or perform destructive operations. Explain what changed and what was verified."""
+
+
+class XolotlLiteLLMModel(LiteLLMModel):
+    """Tolerate common final-answer aliases emitted by OpenAI-compatible models."""
+
+    @staticmethod
+    def _normalize_tool_names(message: ChatMessage) -> ChatMessage:
+        if message.tool_calls:
+            for tool_call in message.tool_calls:
+                if tool_call.function.name in {"answer", "final"}:
+                    tool_call.function.name = "final_answer"
+        return message
+
+    def generate(self, *args, **kwargs):
+        return self._normalize_tool_names(super().generate(*args, **kwargs))
+
+    def parse_tool_calls(self, message: ChatMessage) -> ChatMessage:
+        try:
+            parsed = super().parse_tool_calls(message)
+        except Exception:
+            if not message.content:
+                raise
+            message.tool_calls = [
+                ChatMessageToolCall(
+                    function=ChatMessageToolCallFunction(
+                        name="final_answer", arguments={"answer": message.content}
+                    ),
+                    id="xolotl-final-answer",
+                    type="function",
+                )
+            ]
+            parsed = message
+        return self._normalize_tool_names(parsed)
 
 
 def build_agent() -> ToolCallingAgent:
@@ -262,7 +333,7 @@ def build_agent() -> ToolCallingAgent:
     model_kwargs["tool_choice"] = "auto"
     if config["reasoner_level"]:
         model_kwargs["reasoning_effort"] = config["reasoner_level"]
-    model = LiteLLMModel(
+    model = XolotlLiteLLMModel(
         model_id=model_id,
         api_base=config["base_url"],
         api_key=config["api_key"],
@@ -270,7 +341,7 @@ def build_agent() -> ToolCallingAgent:
         **model_kwargs,
     )
     return ToolCallingAgent(
-        tools=[environment_info, list_files, read_file, search_code, write_file, write_report, run_command],
+        tools=[environment_info, list_files, read_file, search_code, write_file, write_report, write_temp_file, run_command],
         model=model,
         instructions=SYSTEM_INSTRUCTIONS,
         max_tool_threads=1,

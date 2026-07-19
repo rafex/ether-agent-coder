@@ -11,7 +11,8 @@ import fastapi  # noqa: E402,F401
 import litellm  # noqa: E402,F401
 import orjson  # noqa: E402,F401
 
-from agent import _litellm_model_id, environment_info, list_files, read_file, run_command, write_report  # noqa: E402
+from agent import _litellm_model_id, XolotlLiteLLMModel, environment_info, list_files, read_file, run_command, write_report, write_temp_file  # noqa: E402
+from smolagents.models import ChatMessage, ChatMessageToolCall, ChatMessageToolCallFunction  # noqa: E402
 
 
 def main() -> None:
@@ -20,12 +21,27 @@ def main() -> None:
     assert "ether-agent-coder" in read_file.forward("README.md", 1, 1)
     assert run_command.forward("python --version").startswith("exit=0")
     assert _litellm_model_id("openai/gpt-oss-120b") == "openai/openai/gpt-oss-120b"
+    alias_message = ChatMessage(
+        role="assistant",
+        content=None,
+        tool_calls=[ChatMessageToolCall(
+            function=ChatMessageToolCallFunction(name="answer", arguments={"answer": "ok"}),
+            id="smoke",
+            type="function",
+        )],
+    )
+    assert XolotlLiteLLMModel._normalize_tool_names(alias_message).tool_calls[0].function.name == "final_answer"
     report = Path(tempfile.gettempdir()) / "xolotl-smoke-report.md"
     try:
         assert "wrote report" in write_report.forward(str(report), "# smoke\n")
         assert report.read_text(encoding="utf-8") == "# smoke\n"
     finally:
         report.unlink(missing_ok=True)
+    source = Path(tempfile.gettempdir()) / "xolotl-smoke-source.java"
+    try:
+        assert "wrote temporary file" in write_temp_file.forward(str(source), "class Smoke {}\n")
+    finally:
+        source.unlink(missing_ok=True)
     try:
         read_file.forward(".secrets/.llm-provider.enc.yml")
     except ValueError:
